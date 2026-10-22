@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Giá BDS tại Kim Long, Huế</title>
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <style>
+    body { margin: 0; padding: 0; display: flex; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; height: 100vh; overflow: hidden; background: #f4f4f4; }
+    .sidebar { width: 320px; padding: 20px; background: #fff; box-shadow: 2px 0 10px rgba(0,0,0,0.1); z-index: 10; }
+    .sidebar h2 { margin-top: 0; font-size: 20px; color: #d9534f; border-bottom: 2px solid #d9534f; padding-bottom: 10px; }
+    .layer-control label { display: block; padding: 10px 0; cursor: pointer; font-size: 15px; border-bottom: 1px solid #eee; }
+    #map { flex: 1; position: relative; }
+    
+    /* Bảng thông tin chi tiết khi click */
+    .info-panel { position: absolute; top: 20px; right: -400px; width: 320px; background: rgba(255,255,255,0.95); padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: right 0.3s ease; max-height: 80vh; overflow-y: auto; z-index: 9999; }
+    .info-panel.active { right: 20px; }
+    .info-row { margin-bottom: 8px; font-size: 14px; border-bottom: 1px dashed #ddd; padding-bottom: 6px; }
+    .close-btn { position: absolute; top: 15px; right: 15px; cursor: pointer; color: #888; font-size: 20px; font-weight: bold; border: none; background: none; }
+    .close-btn:hover { color: #d9534f; }
+
+    /* Bảng chú giải chính (Góc dưới bên phải) */
+    .legend { position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.95); padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 5; max-width: 280px; }
+    .legend h4 { margin: 0 0 8px 0; font-size: 15px; border-bottom: 1px solid #ccc; padding-bottom: 4px; color: #333; }
+    .legend-item { display: flex; align-items: center; margin-bottom: 6px; font-size: 13px; }
+    .legend-color { width: 14px; height: 14px; margin-right: 8px; display: inline-block; border: 1px solid #999; flex-shrink: 0; }
+    .circle { border-radius: 50%; }
+
+    /* Khối danh sách viết tắt có thanh cuộn */
+    .abbrev-list { max-height: 160px; overflow-y: auto; border-top: 1px solid #eee; padding-top: 8px; margin-top: 8px; font-size: 12px; }
+    .abbrev-item { margin-bottom: 4px; line-height: 1.3; }
+    .abbrev-item strong { color: #d9534f; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>Giá BDS tại Kim Long, Huế</h2>
+    <div class="layer-control">
+      <label><input type="checkbox" id="toggle-diem" checked> Điểm khảo sát (Đỏ)</label>
+      <label><input type="checkbox" id="toggle-quyhoach" checked> Điểm quy hoạch (Cam)</label>
+      <label><input type="checkbox" id="toggle-matnuoc" checked> Mặt nước (Xanh)</label>
+    </div>
+  </div>
+  
+  <div id="map">
+    <!-- Bảng chú giải ký hiệu và chữ viết tắt -->
+    <div class="legend">
+      <h4>Chú giải bản đồ</h4>
+      <div class="legend-item">
+        <span class="legend-color circle" style="background: #ff0000;"></span> Giá BĐS (Khảo sát)
+      </div>
+      <div class="legend-item">
+        <span class="legend-color circle" style="background: #ff9900;"></span> Điểm Quy hoạch
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #a3c2ff;"></span> Mặt nước
+      </div>
+
+      <!-- Khối ghi chú chữ viết tắt -->
+      <h4 style="margin-top: 10px;">Ký hiệu & Viết tắt</h4>
+      <div class="abbrev-list">
+        <div class="abbrev-item"><strong>ODT:</strong> Đất ở tại đô thị</div>
+        <div class="abbrev-item"><strong>ONT:</strong> Đất ở tại nông thôn</div>
+        <div class="abbrev-item"><strong>DO:</strong> Đất ở</div>
+        <div class="abbrev-item"><strong>CLN:</strong> Đất trồng cây lâu năm</div>
+        <div class="abbrev-item"><strong>DKV:</strong> Đất khu vui chơi, giải trí công cộng</div>
+        <div class="abbrev-item"><strong>TIN:</strong> Đất cơ sở tín ngưỡng</div>
+        <div class="abbrev-item"><strong>DDT:</strong> Đất có di tích lịch sử - văn hóa</div>
+        <div class="abbrev-item"><strong>DGT:</strong> Đất giao thông</div>
+        <div class="abbrev-item"><strong>HT:</strong> Homestay, Hotel</div>
+        <div class="abbrev-item"><strong>QA:</strong> Quán ăn và nhà hàng</div>
+        <div class="abbrev-item"><strong>CF:</strong> Cà Phê</div>
+        <div class="abbrev-item"><strong>NV:</strong> Nhà vườn</div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="info-panel" id="infoPanel">
+    <button class="close-btn" onclick="document.getElementById('infoPanel').classList.remove('active')">×</button>
+    <h3 style="margin-top: 0; color: #d9534f; border-bottom: 1px solid #d9534f; padding-bottom: 8px;">Thông tin chi tiết</h3>
+    <div id="infoContent"></div>
+  </div>
+
+  <script>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+      center: [107.57, 16.47],
+      zoom: 14
+    });
+
+    map.on('load', () => {
+      const t = Date.now();
+      map.addSource('nguon-diem', { type: 'geojson', data: `diem_khaosat.geojson?t=${t}` });
+      map.addSource('nguon-quyhoach', { type: 'geojson', data: `quy_hoach.geojson?t=${t}` });
+      map.addSource('nguon-matnuoc', { type: 'geojson', data: `mat_nuoc.geojson?t=${t}` });
+
+      map.addLayer({ id: 'lop-matnuoc', type: 'fill', source: 'nguon-matnuoc', paint: { 'fill-color': '#a3c2ff', 'fill-opacity': 0.7 } });
+      map.addLayer({ id: 'lop-quyhoach', type: 'circle', source: 'nguon-quyhoach', paint: { 'circle-color': '#ff9900', 'circle-radius': 6, 'circle-stroke-width': 1, 'circle-stroke-color': '#fff' } });
+      map.addLayer({ id: 'lop-diem', type: 'circle', source: 'nguon-diem', paint: { 'circle-color': '#ff0000', 'circle-radius': 7, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#fff' } });
+
+      const toggleLayer = (checkboxId, layerId) => {
+        document.getElementById(checkboxId).addEventListener('change', e => {
+          map.setLayoutProperty(layerId, 'visibility', e.target.checked ? 'visible' : 'none');
+        });
+      };
+      toggleLayer('toggle-diem', 'lop-diem');
+      toggleLayer('toggle-quyhoach', 'lop-quyhoach');
+      toggleLayer('toggle-matnuoc', 'lop-matnuoc');
+
+      const layers = ['lop-diem', 'lop-quyhoach', 'lop-matnuoc'];
+      
+      layers.forEach(layerId => {
+        map.on('click', layerId, (e) => {
+          if (!e.features || e.features.length === 0) return;
+          const props = e.features[0].properties;
+          
+          let html = '';
+          for (const [key, value] of Object.entries(props)) {
+            let giatriHienThi = value;
+            let tenTruongHienThi = key;
+
+            // Chuyển đổi mã Tình trạng pháp lý
+            if (key === 'Tinh_trang_phap_ly') {
+              tenTruongHienThi = 'Tình trạng pháp lý';
+              if (value == '1') giatriHienThi = 'Có sổ đỏ';
+              else if (value == '2') giatriHienThi = 'Không có sổ đỏ';
+            }
+            // Chuyển đổi mã Vị trí
+            else if (key === 'Vi_tri') {
+              tenTruongHienThi = 'Vị trí';
+              if (value == '1') giatriHienThi = 'Mặt đường chính';
+              else if (value == '2') giatriHienThi = 'Mặt đường nhỏ';
+              else if (value == '3') giatriHienThi = 'Đầu ngõ';
+              else if (value == '4') giatriHienThi = 'Giữa ngõ';
+              else if (value == '5') giatriHienThi = 'Cuối ngõ';
+              else giatriHienThi = value; 
+            }
+            // Làm đẹp tên các trường khác nếu có
+            else if (key === 'Gia_BDS') tenTruongHienThi = 'Giá BĐS (Tỷ VNĐ)';
+            else if (key === 'Dien_tich') tenTruongHienThi = 'Diện tích (m2)';
+
+            html += `<div class="info-row"><strong>${tenTruongHienThi}:</strong> ${giatriHienThi || '<span style="color:#999;font-style:italic;">Trống</span>'}</div>`;
+          }
+          
+          if (html === '') html = '<div class="info-row">Điểm này trống trường dữ liệu.</div>';
+          
+          document.getElementById('infoContent').innerHTML = html;
+          document.getElementById('infoPanel').classList.add('active');
+        });
+        
+        map.on('mouseenter', layerId, () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', layerId, () => map.getCanvas().style.cursor = '');
+      });
+    });
+  </script>
+</body>
+</html>
